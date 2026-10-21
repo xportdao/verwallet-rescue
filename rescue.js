@@ -169,7 +169,7 @@
       el('dl', { class: 'address' }, el('dt', { text: l('Адрес кошелька', 'Wallet address') }), el('dd', { text: shown.address })),
       list,
       // Judge V-96: the auto-hide is said, not silent.
-      para(l('Слова скроются через 2 минуты. Показать снова можно той же кнопкой.', 'The words hide after 2 minutes. Show them again with the same button.'), 'help'),
+      para(l('Слова скроются через 2 минуты. Показать снова можно кнопкой «Показать 24 слова».', 'The words hide after 2 minutes. Show them again with “Show the 24 words”.'), 'help'),
       el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => { wipe(); showStart(); }, text: l('Скрыть слова', 'Hide the words') })),
     );
     // As in the app, the words do not stay on screen unattended.
