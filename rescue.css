@@ -1,0 +1,21 @@
+/* VerWallet rescue page: the app's colours and type, one column, nothing else. */
+:root{--bg:light-dark(#f4f6f8,#131416);--surface:light-dark(#ffffff,#1a1c1f);--ink:light-dark(#17212c,#f0f2f5);--muted:light-dark(#5b6676,#969fa9);--line:light-dark(#e0e5eb,#2c3036);--accent:light-dark(#236b9f,#8bcfff);--danger:light-dark(#a63b3b,#eea1a1);color-scheme:light dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+main{max-width:520px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+h1{font-size:1.625rem;line-height:1.2;margin:8px 0 12px;text-wrap:balance;outline:none}
+.lead{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
+.note{font-size:0.875rem;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:12px 0;text-wrap:pretty}
+.error{color:var(--danger);font-size:0.875rem;margin:10px 0 0}
+label{display:block;font-weight:600;font-size:0.875rem;margin:18px 0 6px}
+input{width:100%;min-height:48px;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bar{margin-top:22px}
+button{width:100%;min-height:52px;font:inherit;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:16px;cursor:pointer}
+button.primary{border-color:var(--accent)}
+.address{margin:14px 0;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.address dt{font-size:0.75rem;color:var(--muted)}
+.address dd{margin:4px 0 0;font:0.8125rem/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.words{list-style:none;counter-reset:word;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 4px;padding:0}
+.words li{counter-increment:word;display:flex;align-items:baseline;gap:8px;min-height:40px;padding:8px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9375rem;user-select:text;-webkit-user-select:text}
+.words li::before{content:counter(word);min-width:1.4em;color:var(--muted);font-size:0.75rem;text-align:right}
