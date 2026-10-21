@@ -20,11 +20,3 @@ The main wallet's key is split two of three: one part on the person's phone (Tel
 ## In an emergency (owner)
 
 See `docs/rescue.md` in the VerWallet repository. In short: verify the hashes, then in @BotFather point the bot's Mini App URL, menu button and the `wallet` app to this page.
-
----
-
-# Страница восстановления VerWallet
-
-Статическая страница, которая показывает 24 слова **основного кошелька Gram**, если сервер VerWallet пропал. Ключ делится на три части, любые две дают ключ. Страница берёт две части, которые хранит Telegram (на телефоне и в облаке), собирает слова на устройстве и показывает их вместе с адресом. Слова вводятся в Tonkeeper или другой кошелёк TON (W5). Реферальный кошелёк здесь не восстановить: его ключ хранился на сервере целиком.
-
-Страница работает только когда её открывает бот @Verwallet_bot, сетевых запросов не делает, код открыт, хеши файлов в `SHA256SUMS`.

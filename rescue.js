@@ -64,13 +64,9 @@
   if (typeof document === 'undefined') return;
   const R = window.VW_RESCUE;
   const tg = window.Telegram && window.Telegram.WebApp;
-  const lang = ((tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code) || navigator.language || 'en').toLowerCase();
-  const ru = lang.startsWith('ru');
-  const l = (r, e) => (ru ? r : e);
+  // English only, whatever the Telegram language (owner 21.10.2026: «только англоязычный текст»).
   const testnet = new URLSearchParams(location.search).get('network') === 'testnet';
   const main = document.getElementById('rescue');
-  document.documentElement.lang = ru ? 'ru' : 'en';
-  document.title = l('VerWallet: восстановление', 'VerWallet: recovery');
   try { if (tg) { tg.ready(); tg.expand(); } } catch { /* optional */ }
 
   const el = (tag, attrs = {}, ...children) => {
@@ -110,7 +106,7 @@
 
   async function attempt(password = '') {
     let parts;
-    try { parts = await readParts(); } catch { return showProblem(l('Хранилище Telegram не ответило. Закройте страницу и откройте снова.', 'The Telegram storage did not answer. Close the page and open it again.')); }
+    try { parts = await readParts(); } catch { return showProblem('The Telegram storage did not answer. Close the page and open it again.'); }
     try {
       if (!window.VWTon) throw Object.assign(new Error('lib'), { code: 'LIB' });
       shown = await R.recover(window.VWTon, { ...parts, password, testnet });
@@ -118,19 +114,19 @@
     } catch (error) {
       if (error.code === 'PASSWORD_NEEDED' || error.code === 'PASSWORD_WRONG') return showPassword(error.code === 'PASSWORD_WRONG');
       if (error.code === 'NOT_ENOUGH' && !parts.phone && parts.canRestore) return showRestore();
-      if (error.code === 'NO_WALLET') return showProblem(l('В этом аккаунте Telegram нет основного кошелька Gram VerWallet.', 'This Telegram account has no VerWallet main Gram wallet.'));
-      if (error.code === 'LIB') return showProblem(l('Страница загрузилась не полностью. Закройте её и откройте снова.', 'The page did not load completely. Close it and open it again.'));
-      return showProblem(l('На этом устройстве не хватает частей ключа. Откройте страницу на телефоне, где вы пользовались VerWallet.', 'This device does not hold enough key parts. Open the page on the phone where you used VerWallet.'));
+      if (error.code === 'NO_WALLET') return showProblem('This Telegram account has no VerWallet main Gram wallet.');
+      if (error.code === 'LIB') return showProblem('The page did not load completely. Close it and open it again.');
+      return showProblem('This device does not hold enough key parts. Open the page on the phone where you used VerWallet.');
     }
   }
 
   function showStart() {
     show(
-      heading(l('Восстановление основного кошелька Gram', 'Recovering the main Gram wallet')),
-      para(l('VerWallet сейчас не работает. Эта страница собирает ключ основного кошелька Gram из двух частей, которые хранит Telegram: на этом телефоне и в вашем облаке Telegram. Сервер VerWallet для этого не нужен.', 'VerWallet is not working right now. This page puts the main Gram wallet key together from the two parts Telegram keeps: on this phone and in your Telegram cloud. No VerWallet server is needed.')),
-      para(l('Вы увидите 24 слова. Введите их в Tonkeeper или другом кошельке TON, и средства будут у вас.', 'You will see 24 words. Enter them in Tonkeeper or another TON wallet and the funds are yours.'), 'note'),
-      para(l('Реферальный кошелёк здесь не восстановить: его ключ хранился на сервере VerWallet.', 'The referral wallet cannot be recovered here: its key was kept on the VerWallet server.'), 'note'),
-      el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', onclick: () => attempt(), text: l('Показать 24 слова', 'Show the 24 words') })),
+      heading('Recovering the main Gram wallet'),
+      para('VerWallet is not working right now. This page puts the main Gram wallet key together from the two parts Telegram keeps: on this phone and in your Telegram cloud. No VerWallet server is needed.'),
+      para('You will see 24 words. Enter them in Tonkeeper or another TON wallet and the funds are yours.', 'note'),
+      para('The referral wallet cannot be recovered here: its key was kept on the VerWallet server.', 'note'),
+      el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', onclick: () => attempt(), text: 'Show the 24 words' })),
     );
   }
 
@@ -139,21 +135,21 @@
     const go = () => { const value = input.value; input.value = ''; attempt(value); };
     input.addEventListener('keydown', event => { if (event.key === 'Enter') go(); });
     show(
-      heading(l('Пароль восстановления', 'Recovery password')),
-      para(l('Часть ключа в облаке Telegram закрыта вашим паролем восстановления.', 'The key part in your Telegram cloud is locked with your recovery password.')),
-      el('label', { for: 'rescue-password', text: l('Пароль', 'Password') }), input,
-      wrong ? el('p', { class: 'error', role: 'alert', text: l('Пароль не подошёл.', 'The password did not fit.') }) : null,
-      el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', onclick: go, text: l('Открыть', 'Open') })),
+      heading('Recovery password'),
+      para('The key part in your Telegram cloud is locked with your recovery password.'),
+      el('label', { for: 'rescue-password', text: 'Password' }), input,
+      wrong ? el('p', { class: 'error', role: 'alert', text: 'Wrong password.' }) : null,
+      el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', onclick: go, text: 'Unlock' })),
     );
     input.focus();
   }
 
   function showRestore() {
     show(
-      heading(l('Часть ключа на этом телефоне', 'The key part on this phone')),
-      para(l('Telegram сохранил часть ключа с прежней установки на этом телефоне. Верните её, чтобы собрать ключ.', 'Telegram kept a key part from an earlier install on this phone. Bring it back to put the key together.')),
-      el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', text: l('Вернуть часть ключа из Telegram', 'Get the key part back from Telegram'), onclick: async () => {
-        try { await call(secureStore(), 'restoreItem', R.SHARE_C); } catch { return showProblem(l('Telegram не вернул часть ключа.', 'Telegram did not return the key part.')); }
+      heading('The key part on this phone'),
+      para('Telegram kept a key part from an earlier install on this phone. Restore it to put the key together.'),
+      el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', text: 'Restore the key part from Telegram', onclick: async () => {
+        try { await call(secureStore(), 'restoreItem', R.SHARE_C); } catch { return showProblem('Telegram did not return the key part.'); }
         attempt();
       } })),
     );
@@ -162,27 +158,27 @@
   function showWords() {
     const list = el('ol', { class: 'words' }, shown.words.map(word => el('li', { text: word })));
     show(
-      heading(l('24 слова основного кошелька', 'The main wallet’s 24 words')),
-      para(l('Запишите их по порядку и введите в Tonkeeper или другом кошельке TON («Импорт кошелька», версия W5). Кто знает слова, тот распоряжается Gram.', 'Write them down in order and enter them in Tonkeeper or another TON wallet (“Import wallet”, version W5). Whoever knows the words controls the Gram.')),
+      heading('The main wallet’s 24 words'),
+      para('Write them down in order and enter them in Tonkeeper or another TON wallet (“Import wallet”, version W5). Whoever knows the words controls the Gram.'),
       // Judge V-95: the page shows up exactly when the service is down, the time «recovery helpers» write.
-      para(l('Никому не сообщайте слова и не вводите их на сайтах: только в приложении кошелька.', 'Never tell anyone the words or enter them on websites: only in a wallet app.'), 'note warn'),
-      el('dl', { class: 'address' }, el('dt', { text: l('Адрес кошелька', 'Wallet address') }), el('dd', { text: shown.address })),
+      para('Never share these words or enter them on a website, only in a wallet app.', 'note warn'),
+      el('dl', { class: 'address' }, el('dt', { text: 'Wallet address' }), el('dd', { text: shown.address })),
       list,
       // Judge V-96: the auto-hide is said, not silent.
-      para(l('Слова скроются через 2 минуты. Показать снова можно кнопкой «Показать 24 слова».', 'The words hide after 2 minutes. Show them again with “Show the 24 words”.'), 'help'),
-      el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => { wipe(); showStart(); }, text: l('Скрыть слова', 'Hide the words') })),
+      para('The words hide after 2 minutes. Show them again with “Show the 24 words”.', 'help'),
+      el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => { wipe(); showStart(); }, text: 'Hide the words' })),
     );
     // As in the app, the words do not stay on screen unattended.
     hideTimer = setTimeout(() => { wipe(); showStart(); }, 120000);
   }
 
   function showProblem(text) {
-    show(heading(l('Не получилось', 'It did not work')), para(text), el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => showStart(), text: l('Назад', 'Back') })));
+    show(heading('Something went wrong'), para(text), el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => showStart(), text: 'Back' })));
   }
 
   document.addEventListener('visibilitychange', () => { if (document.hidden && shown) { wipe(); showStart(); } });
   if (!inTelegram()) {
-    show(heading(l('Откройте в Telegram', 'Open in Telegram')), para(l('Эта страница работает только внутри Telegram, когда её открывает бот @Verwallet_bot.', 'This page works only inside Telegram, when the @Verwallet_bot bot opens it.')));
+    show(heading('Open in Telegram'), para('This page works only inside Telegram, opened from the @Verwallet_bot bot.'));
   } else {
     showStart();
   }
