@@ -1,11 +1,15 @@
 /* VerWallet rescue page: the app's colours and type, one column, nothing else. */
-:root{--bg:light-dark(#f4f6f8,#131416);--surface:light-dark(#ffffff,#1a1c1f);--ink:light-dark(#17212c,#f0f2f5);--muted:light-dark(#5b6676,#969fa9);--line:light-dark(#e0e5eb,#2c3036);--accent:light-dark(#236b9f,#8bcfff);--danger:light-dark(#a63b3b,#eea1a1);color-scheme:light dark}
+:root{--bg:#f4f6f8;--surface:#ffffff;--ink:#17212c;--muted:#5b6676;--line:#e0e5eb;--accent:#236b9f;--danger:#a63b3b;--warm:#895d27;color-scheme:light dark}
+/* By media query, not light-dark(): Telegram on iOS 17.0 to 17.4 has no light-dark() (judge note). */
+@media (prefers-color-scheme:dark){:root{--bg:#131416;--surface:#1a1c1f;--ink:#f0f2f5;--muted:#969fa9;--line:#2c3036;--accent:#8bcfff;--danger:#eea1a1;--warm:#d8b584}}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
 main{max-width:520px;margin:0 auto;padding:calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
 h1{font-size:1.625rem;line-height:1.2;margin:8px 0 12px;text-wrap:balance;outline:none}
 .lead{color:var(--muted);margin:0 0 14px;text-wrap:pretty}
 .note{font-size:0.875rem;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:12px 0;text-wrap:pretty}
+.note.warn{color:var(--warm)}
+.help{font-size:0.8125rem;color:var(--muted);margin:10px 0 0}
 .error{color:var(--danger);font-size:0.875rem;margin:10px 0 0}
 label{display:block;font-weight:600;font-size:0.875rem;margin:18px 0 6px}
 input{width:100%;min-height:48px;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:0 14px}

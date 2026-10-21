@@ -83,7 +83,7 @@
     children.flat().filter(Boolean).forEach(child => node.append(child));
     return node;
   };
-  const show = (...nodes) => { main.replaceChildren(...nodes); const h = main.querySelector('h1'); if (h) h.focus({ preventScroll: true }); };
+  const show = (...nodes) => { main.replaceChildren(...nodes.filter(Boolean)); const h = main.querySelector('h1'); if (h) h.focus({ preventScroll: true }); };
   const heading = text => el('h1', { tabindex: '-1', text });
   const para = (text, cls = 'lead') => el('p', { class: cls, text });
 
@@ -164,8 +164,12 @@
     show(
       heading(l('24 слова основного кошелька', 'The main wallet’s 24 words')),
       para(l('Запишите их по порядку и введите в Tonkeeper или другом кошельке TON («Импорт кошелька», версия W5). Кто знает слова, тот распоряжается Gram.', 'Write them down in order and enter them in Tonkeeper or another TON wallet (“Import wallet”, version W5). Whoever knows the words controls the Gram.')),
+      // Judge V-95: the page shows up exactly when the service is down, the time «recovery helpers» write.
+      para(l('Никому не сообщайте слова и не вводите их на сайтах: только в приложении кошелька.', 'Never tell anyone the words or enter them on websites: only in a wallet app.'), 'note warn'),
       el('dl', { class: 'address' }, el('dt', { text: l('Адрес кошелька', 'Wallet address') }), el('dd', { text: shown.address })),
       list,
+      // Judge V-96: the auto-hide is said, not silent.
+      para(l('Слова скроются через 2 минуты. Показать снова можно той же кнопкой.', 'The words hide after 2 minutes. Show them again with the same button.'), 'help'),
       el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => { wipe(); showStart(); }, text: l('Скрыть слова', 'Hide the words') })),
     );
     // As in the app, the words do not stay on screen unattended.
