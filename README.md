@@ -1,8 +1,8 @@
 # VerWallet rescue page
 
-A static page that gives a VerWallet user the 24 words of their **main Gram wallet** when the VerWallet server is gone.
+A static page that gives a VerWallet user the 24 words of their **main wallet** when the VerWallet server is gone: the main Gram wallet, or one phrase for Gram and Klever (newer wallets).
 
-The main wallet's key is split two of three: one part on the person's phone (Telegram secure storage), one in their Telegram cloud (optionally under a recovery password), one on the VerWallet server. Any two give the key. This page uses the two parts Telegram keeps, rebuilds the 24 words on the device, checks them and shows them with the wallet address. The person then imports the words into Tonkeeper or another TON wallet (W5). The page cannot help with the referral wallet: that key was kept whole on the server.
+The main wallet's key is split two of three: one part on the person's phone (Telegram secure storage), one in their Telegram cloud (optionally under a recovery password), one on the VerWallet server. Any two give the key. This page uses the two parts Telegram keeps, rebuilds the 24 words on the device, checks them against the addresses saved in the person's Telegram and shows them with those addresses. The person then imports the words into Tonkeeper or MyTonWallet for Gram (W5) and, for one phrase of both chains, into Klever Wallet for Klever. The page cannot help with the referral Gram wallet or VerWallet's own Klever wallet: their keys were kept whole on the server. A Klever private key the person saved restores that wallet.
 
 ## Why it is safe to publish
 
@@ -15,7 +15,8 @@ The main wallet's key is split two of three: one part on the person's phone (Tel
 
 - `index.html`, `rescue.css`, `rescue.js`: the page.
 - `ton.js`: the same bundle VerWallet's app signs with (`web/vendor/ton.js`: `@ton/core`, `@ton/crypto`, `@ton/ton`, Privy's audited `shamir-secret-sharing`).
-- `SHA256SUMS`: hashes of the four files above.
+- `klevergate-embedded.js`: the KleverGate embedded module the app pins (`web/vendor/klevergate-embedded.js`): key parts of both formats, share envelopes, the Klever and one-phrase keys. Its licences: `klevergate-embedded.THIRD_PARTY_LICENSES.txt`.
+- `SHA256SUMS`: hashes of the five code files above.
 
 ## In an emergency (owner)
 

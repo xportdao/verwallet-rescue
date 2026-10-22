@@ -1,4 +1,4 @@
-// VerWallet rescue page: the main Gram wallet's 24 words, rebuilt on the person's own device from the two key parts
+// VerWallet rescue page: the main wallet's 24 words, rebuilt on the person's own device from the two key parts
 // Telegram keeps for @Verwallet_bot (this phone's secure storage and the account's cloud), with no VerWallet server.
 // It runs only when the bot opens it as its Mini App: Telegram keeps those storages per bot, so anywhere else it
 // sees nothing. It makes no network requests; the words never leave the screen. See README.md.
@@ -8,54 +8,95 @@
   else root.VW_RESCUE = api;
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  // The storage names and formats of web/app.js (owner 20.10.2026, docs/gram-keys-on-device.md).
-  const SHARE_B = 'gram_main_b';
-  const SHARE_B_NEXT = 'gram_main_b_next';
-  const SHARE_C = 'gram_main_c';
+  // The storage names of web/app.js and protocol v1 (docs/main-wallet-one-phrase.md): the main wallet of one phrase
+  // for Gram and Klever (main_*), and the earlier main Gram wallet (gram_main_*, owner 20.10.2026).
+  const MAIN = { b: 'main_b', next: 'main_b_next', c: 'main_c', anchor: 'main_anchor' };
+  const GRAM = { b: 'gram_main_b', next: 'gram_main_b_next', c: 'gram_main_c', anchor: 'gram_main_address' };
+  // Gram from one phrase of both chains: SLIP-10 at this path, a W5 wallet, as Tonkeeper and MyTonWallet read it.
+  const TON_PATH = "m/44'/607'/0'";
   const unb64 = text => Uint8Array.from(atob(text), char => char.charCodeAt(0));
+  const fail = code => Object.assign(new Error(code), { code });
 
-  async function passwordKey(password, salt) {
-    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
-    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 310000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  const tonAddress = (V, text) => { try { return V.Address.parse(text); } catch { return null; } };
+  const w5 = (V, publicKey, testnet) => V.WalletContractV5R1.create({ publicKey: V.Buffer.from(publicKey), walletId: { networkGlobalId: testnet ? -3 : -239 } }).address;
+  const shown = (address, testnet) => address.toString({ bounceable: false, testOnly: testnet });
+  function profileTon(V, K, words, testnet) {
+    const pair = K.deriveEd25519(words, TON_PATH);
+    pair.privateKey.fill(0);
+    return w5(V, pair.publicKey, testnet);
   }
-  /** The cloud part as stored: as is, or sealed with the recovery password (AES-GCM, PBKDF2 310 000). */
-  async function openCloudPart(text, password) {
-    const data = JSON.parse(text);
-    if (data.s) return unb64(data.s);
-    if (!password) throw Object.assign(new Error('password'), { code: 'PASSWORD_NEEDED' });
-    try {
-      return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(data.p.iv) }, await passwordKey(password, unb64(data.p.salt)), unb64(data.p.ct)));
-    } catch { throw Object.assign(new Error('password'), { code: 'PASSWORD_WRONG' }); }
+  /** The earlier wallet's Gram, by Tonkeeper's own rule: a TON mnemonic by TON's scheme, any other phrase as BIP39. */
+  async function earlierTon(V, K, words, testnet) {
+    if (!(await V.mnemonicValidate(words))) return profileTon(V, K, words, testnet);
+    const keys = await V.mnemonicToPrivateKey(words);
+    keys.secretKey.fill(0);
+    return w5(V, keys.publicKey, testnet);
+  }
+
+  /** main_anchor, strictly: exactly v, ton and klever with v 1 (protocol v1 §4.1). Anything else is a mismatch. */
+  function mainAnchor(V, text) {
+    let data;
+    try { data = JSON.parse(text); } catch { throw fail('ANCHOR_BAD'); }
+    const fields = data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data).sort().join() : '';
+    const ton = fields === 'klever,ton,v' && data.v === 1 && typeof data.ton === 'string' ? tonAddress(V, data.ton) : null;
+    if (!ton || typeof data.klever !== 'string' || !/^klv1[02-9ac-hj-np-z]{58}$/.test(data.klever)) throw fail('ANCHOR_BAD');
+    return { ton, klever: data.klever };
+  }
+  function gramAnchor(V, text) {
+    const ton = tonAddress(V, text);
+    if (!ton) throw fail('ANCHOR_BAD');
+    return { ton };
+  }
+  /** The cloud and phone copies as one: a copy that does not read, or two that differ, stop everything. */
+  function oneAnchor(copies, read) {
+    const found = copies.filter(Boolean).map(read);
+    if (found.length === 2 && !(found[0].ton.equals(found[1].ton) && found[0].klever === found[1].klever)) throw fail('ANCHOR_MISMATCH');
+    return found[0] || null;
   }
 
   /**
-   * The words from any two parts that make a valid TON mnemonic, with the wallet's W5 address. `phone` is the
-   * secure storage part (base64), `cloud` the stored cloud parts (B and the spare B being written during a re-split).
-   * Throws PASSWORD_NEEDED or PASSWORD_WRONG when only a sealed cloud part could help, NOT_ENOUGH otherwise.
+   * One wallet's words from any two of its parts, checked against its saved addresses. `which` is 'main' (one phrase
+   * for Gram and Klever) or 'gram' (the earlier main Gram wallet); `parts` holds `phone` (the secure storage part,
+   * base64), `cloud` (B and the spare B of a re-split cut short, as stored) and `anchors` (the cloud and phone copies).
+   * Throws PASSWORD_NEEDED or PASSWORD_WRONG when only a sealed cloud part could help, ANCHOR_BAD or ANCHOR_MISMATCH
+   * when the saved address does not read or does not match, NOT_ENOUGH or NO_WALLET otherwise.
    */
-  async function recover(V, { phone = '', cloud = [], password = '', testnet = false }) {
-    const parts = [];
-    if (phone) parts.push(unb64(phone));
+  async function recover(V, K, { which = 'gram', parts = {}, password = '', testnet = false }) {
+    const { phone = '', cloud = [], anchors = [] } = parts;
+    const anchor = oneAnchor(anchors, which === 'main' ? text => mainAnchor(V, text) : text => gramAnchor(V, text));
+    // With no server, the phone's part is one of the two: the cloud alone holds one part of a split (its spare, from a
+    // re-split cut short, belongs to another split or repeats it). Its password is never asked for nothing (judge V-101).
+    if (!phone) throw fail(cloud.some(Boolean) ? 'NOT_ENOUGH' : 'NO_WALLET');
+    const shares = [unb64(phone)];
     let need = null;
     for (const text of cloud.filter(Boolean)) {
-      try { parts.push(await openCloudPart(text, password)); } catch (error) { need = need === 'PASSWORD_WRONG' ? need : error.code; }
+      try { shares.push(await K.openShare(text, password || null)); } catch (error) { need = need === 'PASSWORD_WRONG' ? need : error.code; }
     }
-    for (let i = 0; i < parts.length; i += 1) {
-      for (let j = i + 1; j < parts.length; j += 1) {
-        let words;
-        try { words = new TextDecoder().decode(await V.combine([parts[i], parts[j]])).split(' '); } catch { continue; }
-        // Parts of two different splits combine into noise: only a valid mnemonic counts.
-        if (words.length !== 24 || !(await V.mnemonicValidate(words))) continue;
-        const keys = await V.mnemonicToPrivateKey(words);
-        const contract = V.WalletContractV5R1.create({ publicKey: keys.publicKey, walletId: { networkGlobalId: testnet ? -3 : -239 } });
-        keys.secretKey.fill(0);
-        return { words, address: contract.address.toString({ bounceable: false, testOnly: testnet }) };
-      }
+    let found = null;
+    // Every pair is tried; only words whose addresses are the saved ones count (v1 also carries its own tag).
+    const check = async words => {
+      if (which === 'main' && K.phraseProfileIssues(words).length) return false;
+      // With no saved address, the earlier wallet's words must at least be a TON mnemonic, as the app made them.
+      if (which === 'gram' && !anchor && !(await V.mnemonicValidate(words))) return false;
+      const ton = which === 'main' ? profileTon(V, K, words, testnet) : await earlierTon(V, K, words, testnet);
+      const klever = which === 'main' ? K.deriveAccount(words).address : null;
+      if (anchor && (!anchor.ton.equals(ton) || (which === 'main' && anchor.klever !== klever))) return false;
+      found = { ton: shown(ton, testnet), klever };
+      return true;
+    };
+    // Parts that do form words, but of another address than the saved one, are a mismatch, not too few parts.
+    let mismatch = false;
+    const onReject = (i, j, reason) => { if (reason === 'CHECK_FAILED' && anchor) mismatch = true; };
+    try {
+      const words = await K.recoverPhrase(shares, { check, onReject });
+      return { which, words, ton: found.ton, klever: found.klever, checked: !!anchor };
+    } catch (error) {
+      if (error.code !== 'SHARES_MISMATCH') throw error;
+      throw fail(mismatch ? 'ANCHOR_MISMATCH' : need || 'NOT_ENOUGH');
     }
-    throw Object.assign(new Error('parts'), { code: need || (parts.length ? 'NOT_ENOUGH' : 'NO_WALLET') });
   }
 
-  return { SHARE_B, SHARE_B_NEXT, SHARE_C, recover };
+  return { MAIN, GRAM, TON_PATH, recover };
 }));
 
 // ---------- the page
@@ -89,32 +130,47 @@
     try { target[method](...args, (error, value, extra) => (error ? reject(new Error(String(error))) : resolve({ value, extra }))); } catch (error) { reject(error); }
   });
 
-  let shown = null;
+  let words = null;
   let hideTimer = null;
   function wipe() {
     clearTimeout(hideTimer);
-    if (shown) shown.words.fill('');
-    shown = null;
+    if (words) words.words.fill('');
+    words = null;
   }
 
+  /** Both wallets' parts and saved addresses as the app keeps them: the phone's secure storage and the cloud. */
   async function readParts() {
     const secure = secureStore();
-    const phone = secure ? await call(secure, 'getItem', R.SHARE_C).catch(() => ({ value: '', extra: false })) : { value: '', extra: false };
-    const stored = await call(tg.CloudStorage, 'getItems', [R.SHARE_B, R.SHARE_B_NEXT]).then(r => r.value || {}, () => ({}));
-    return { phone: phone.value || '', canRestore: !!phone.extra, cloud: [stored[R.SHARE_B], stored[R.SHARE_B_NEXT]].filter(Boolean) };
+    const onPhone = key => (secure ? call(secure, 'getItem', key).catch(() => ({ value: '', extra: false })) : Promise.resolve({ value: '', extra: false }));
+    const names = [R.MAIN.b, R.MAIN.next, R.MAIN.anchor, R.GRAM.b, R.GRAM.next, R.GRAM.anchor];
+    const [mainC, mainAnchor, gramC, gramAnchor, stored] = await Promise.all([
+      onPhone(R.MAIN.c), onPhone(R.MAIN.anchor), onPhone(R.GRAM.c), onPhone(R.GRAM.anchor),
+      call(tg.CloudStorage, 'getItems', names).then(r => r.value || {}),
+    ]);
+    const set = (names, c, anchor) => ({
+      phone: c.value || '', canRestore: !!c.extra,
+      cloud: [stored[names.b], stored[names.next]].filter(Boolean),
+      anchors: [stored[names.anchor], anchor.value].filter(Boolean),
+    });
+    return { main: set(R.MAIN, mainC, mainAnchor), gram: set(R.GRAM, gramC, gramAnchor) };
   }
+  const holds = set => !!(set.phone || set.cloud.length || set.canRestore);
 
-  async function attempt(password = '') {
+  async function attempt(password = '', which = null) {
     let parts;
     try { parts = await readParts(); } catch { return showProblem('The Telegram storage did not answer. Close the page and open it again.'); }
+    // The wallet of one phrase first; the earlier main Gram wallet when it is the only one, or when asked for.
+    const pick = which || (holds(parts.main) ? 'main' : 'gram');
     try {
-      if (!window.VWTon) throw Object.assign(new Error('lib'), { code: 'LIB' });
-      shown = await R.recover(window.VWTon, { ...parts, password, testnet });
-      showWords();
+      if (!window.VWTon || !window.KleverGateEmbedded) throw Object.assign(new Error('lib'), { code: 'LIB' });
+      words = await R.recover(window.VWTon, window.KleverGateEmbedded, { which: pick, parts: parts[pick], password, testnet });
+      showWords({ earlierToo: pick === 'main' && holds(parts.gram), earlier: pick === 'gram' && holds(parts.main) });
     } catch (error) {
-      if (error.code === 'PASSWORD_NEEDED' || error.code === 'PASSWORD_WRONG') return showPassword(error.code === 'PASSWORD_WRONG');
-      if (error.code === 'NOT_ENOUGH' && !parts.phone && parts.canRestore) return showRestore();
-      if (error.code === 'NO_WALLET') return showProblem('This Telegram account has no VerWallet main Gram wallet.');
+      if (error.code === 'PASSWORD_NEEDED' || error.code === 'PASSWORD_WRONG') return showPassword(error.code === 'PASSWORD_WRONG', pick);
+      if (['NOT_ENOUGH', 'NO_WALLET'].includes(error.code) && !parts[pick].phone && parts[pick].canRestore) return showRestore(pick);
+      if (error.code === 'NO_WALLET') return showProblem('This Telegram account has no VerWallet main wallet.');
+      // Judge V-102: the stop says what can still be done.
+      if (error.code === 'ANCHOR_BAD' || error.code === 'ANCHOR_MISMATCH') return showProblem('The key parts do not match the wallet address saved in your Telegram, so the page stops here. If you wrote down your 24 words, restore the wallet with them in a wallet app.');
       if (error.code === 'LIB') return showProblem('The page did not load completely. Close it and open it again.');
       return showProblem('This device does not hold enough key parts. Open the page on the phone where you used VerWallet.');
     }
@@ -122,17 +178,18 @@
 
   function showStart() {
     show(
-      heading('Recovering the main Gram wallet'),
-      para('VerWallet is not working right now. This page puts the main Gram wallet key together from the two parts Telegram keeps: on this phone and in your Telegram cloud. No VerWallet server is needed.'),
-      para('You will see 24 words. Enter them in Tonkeeper or another TON wallet and the funds are yours.', 'note'),
-      para('The referral wallet cannot be recovered here: its key was kept on the VerWallet server.', 'note'),
+      heading('Recovering the main wallet'),
+      para('VerWallet is not working right now. This page puts your main wallet key together from the two parts Telegram keeps: on this phone and in your Telegram cloud. No VerWallet server is needed.'),
+      para('You will see your 24 words and which app to enter them in. The funds stay yours.', 'note'),
+      // Judge V-103: VerWallet's own Klever wallet is as unrecoverable here as the referral one, and holds most funds.
+      para('The referral Gram wallet and VerWallet’s own Klever wallet cannot be recovered here: their keys were kept on the VerWallet server. A Klever private key you saved restores that wallet.', 'note'),
       el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', onclick: () => attempt(), text: 'Show the 24 words' })),
     );
   }
 
-  function showPassword(wrong) {
+  function showPassword(wrong, which) {
     const input = el('input', { id: 'rescue-password', type: 'password', autocomplete: 'current-password', enterkeyhint: 'done' });
-    const go = () => { const value = input.value; input.value = ''; attempt(value); };
+    const go = () => { const value = input.value; input.value = ''; attempt(value, which); };
     input.addEventListener('keydown', event => { if (event.key === 'Enter') go(); });
     show(
       heading('Recovery password'),
@@ -144,29 +201,41 @@
     input.focus();
   }
 
-  function showRestore() {
+  function showRestore(which) {
     show(
       heading('The key part on this phone'),
       para('Telegram kept a key part from an earlier install on this phone. Restore it to put the key together.'),
       el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', text: 'Restore the key part from Telegram', onclick: async () => {
-        try { await call(secureStore(), 'restoreItem', R.SHARE_C); } catch { return showProblem('Telegram did not return the key part.'); }
-        attempt();
+        try { await call(secureStore(), 'restoreItem', which === 'main' ? R.MAIN.c : R.GRAM.c); } catch { return showProblem('Telegram did not return the key part.'); }
+        attempt('', which);
       } })),
     );
   }
 
-  function showWords() {
-    const list = el('ol', { class: 'words' }, shown.words.map(word => el('li', { text: word })));
+  /** The words with their addresses; two wallets never share a heading, so no one writes down the wrong set (V-100). */
+  function showWords({ earlierToo = false, earlier = false } = {}) {
+    const both = words.which === 'main';
+    const list = el('ol', { class: 'words' }, words.words.map(word => el('li', { text: word })));
     show(
-      heading('The main wallet’s 24 words'),
-      para('Write them down in order and enter them in Tonkeeper or another TON wallet (“Import wallet”, version W5). Whoever knows the words controls the Gram.'),
+      heading(both ? '24 words for Gram and Klever' : earlier ? 'The earlier Gram wallet’s 24 words' : 'The main wallet’s 24 words'),
+      both
+        ? para('Write them down in order. They open two wallets: Gram in Tonkeeper or MyTonWallet (“Import wallet”), Klever in Klever Wallet. Any app you enter them in controls both. Trust Wallet and other multi-chain wallets may show a different Gram address.')
+        : para('Write them down in order and enter them in Tonkeeper or another TON wallet (“Import wallet”, version W5). Whoever knows the words controls the Gram.'),
       // Judge V-95: the page shows up exactly when the service is down, the time «recovery helpers» write.
       para('Never share these words or enter them on a website, only in a wallet app.', 'note warn'),
-      el('dl', { class: 'address' }, el('dt', { text: 'Wallet address' }), el('dd', { text: shown.address })),
+      el('dl', { class: 'address' },
+        el('dt', { text: both ? 'Gram address' : 'Wallet address' }), el('dd', { text: words.ton }),
+        both ? el('dt', { text: 'Klever address from these words' }) : null, both ? el('dd', { text: words.klever }) : null),
+      // Until VerWallet's own Klever wallet is on this phrase, Klever kept by VerWallet has another address (KleverGate
+      // guide 65: name a network only where the host's wallet already lives on the phrase, else say what is not here).
+      both ? para('Klever in VerWallet’s own wallet is not on these words: its key was kept on the VerWallet server.', 'help') : null,
+      words.checked ? null : para('No saved address to compare with: make sure this is the address you used.', 'help'),
       list,
       // Judge V-96: the auto-hide is said, not silent.
       para('The words hide after 2 minutes. Show them again with “Show the 24 words”.', 'help'),
-      el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => { wipe(); showStart(); }, text: 'Hide the words' })),
+      el('div', { class: 'bar' },
+        el('button', { type: 'button', onclick: () => { wipe(); showStart(); }, text: 'Hide the words' }),
+        earlierToo ? el('button', { type: 'button', onclick: () => { wipe(); attempt('', 'gram'); }, text: 'Show the earlier Gram wallet' }) : null),
     );
     // As in the app, the words do not stay on screen unattended.
     hideTimer = setTimeout(() => { wipe(); showStart(); }, 120000);
@@ -176,7 +245,7 @@
     show(heading('Something went wrong'), para(text), el('div', { class: 'bar' }, el('button', { type: 'button', onclick: () => showStart(), text: 'Back' })));
   }
 
-  document.addEventListener('visibilitychange', () => { if (document.hidden && shown) { wipe(); showStart(); } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && words) { wipe(); showStart(); } });
   if (!inTelegram()) {
     show(heading('Open in Telegram'), para('This page works only inside Telegram, opened from the @Verwallet_bot bot.'));
   } else {
