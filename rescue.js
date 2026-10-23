@@ -181,8 +181,9 @@
       heading('Recovering the main wallet'),
       para('VerWallet is not working right now. This page puts your main wallet key together from the two parts Telegram keeps: on this phone and in your Telegram cloud. No VerWallet server is needed.'),
       para('You will see your 24 words and which app to enter them in. The funds stay yours.', 'note'),
-      // Judge V-103: VerWallet's own Klever wallet is as unrecoverable here as the referral one, and holds most funds.
-      para('The referral Gram wallet and VerWallet’s own Klever wallet cannot be recovered here: their keys were kept on the VerWallet server. A Klever private key you saved restores that wallet.', 'note'),
+      // Judge V-103: the Klever wallet VerWallet kept the key of is as unrecoverable here as the referral Gram one. The
+      // judge's words (f63e45a, #24): both are the referral wallets, as the agreement 2026-10-22-1 names them.
+      para('The referral Gram and Klever wallets cannot be recovered here: their keys were kept on the VerWallet server. A Klever private key you saved restores the referral Klever wallet.', 'note'),
       el('div', { class: 'bar' }, el('button', { type: 'button', class: 'primary', onclick: () => attempt(), text: 'Show the 24 words' })),
     );
   }
@@ -225,10 +226,11 @@
       para('Never share these words or enter them on a website, only in a wallet app.', 'note warn'),
       el('dl', { class: 'address' },
         el('dt', { text: both ? 'Gram address' : 'Wallet address' }), el('dd', { text: words.ton }),
-        both ? el('dt', { text: 'Klever address from these words' }) : null, both ? el('dd', { text: words.klever }) : null),
-      // Until VerWallet's own Klever wallet is on this phrase, Klever kept by VerWallet has another address (KleverGate
-      // guide 65: name a network only where the host's wallet already lives on the phrase, else say what is not here).
-      both ? para('Klever in VerWallet’s own wallet is not on these words: its key was kept on the VerWallet server.', 'help') : null,
+        both ? el('dt', { text: 'Klever address' }) : null, both ? el('dd', { text: words.klever }) : null),
+      // The main Klever wallet lives on this phrase (owner 22.10.2026; KleverGate guide 65: name a network only where the
+      // host's wallet already lives on the phrase), checked against main_anchor.klever as the Gram address is. The
+      // referral Klever wallet is not: say so, as the app's backup screen does.
+      both ? para('This is the main Klever wallet in VerWallet. The referral Klever wallet is not on these words: its key was kept on the VerWallet server.', 'help') : null,
       words.checked ? null : para('No saved address to compare with: make sure this is the address you used.', 'help'),
       list,
       // Judge V-96: the auto-hide is said, not silent.
